@@ -16,6 +16,24 @@ class App(ctk.CTk):
             'contact': 340,
             'about': 410
         }
+        mydb = ms.connect(
+            host = 'localhost',
+            user = 'root',
+            password = 'Innocent@2008'
+        )
+        self.cursor = mydb.cursor()
+        self.cursor.execute("CREATE DATABASE IF NOT EXISTS BankingSystem")
+        self.cursor.execute("USE BankingSystem")
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id VARCHAR(255),
+                username VARCHAR(255) NOT NULL,
+                password VARCHAR(255) NOT NULL
+            )
+        """)
+
+        mydb.commit()
+        mydb.close()            
 
         self.extend = False
 
