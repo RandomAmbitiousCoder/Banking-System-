@@ -38,6 +38,8 @@ class App(ctk.CTk):
         self.extend = False
 
         # --- Images ---
+        self.show = ctk.CTkImage(Image.open("show.png"), size=(28, 28))
+        self.hide = ctk.CTkImage(Image.open("hide.png"), size=(28, 28))
         self.toggle = ctk.CTkImage(Image.open("toggle_btn_icon.png"), size=(28, 28))
         self.home = ctk.CTkImage(Image.open("home.png"), size=(28, 28))
         self.service = ctk.CTkImage(Image.open("services_icon.png"), size=(28, 28))
@@ -105,6 +107,7 @@ class App(ctk.CTk):
             self.current_screen.destroy()
         self.current_screen = screen(self)
         return self.current_screen
+    
 
     # --- Pages ---
     class Login(ctk.CTkFrame):
@@ -114,7 +117,12 @@ class App(ctk.CTk):
 
             self.login_label = ctk.CTkLabel(self, text='Login', font=('Rockwell', 50, 'bold'))
             self.login_email = ctk.CTkEntry(self, placeholder_text='Email', width=300, font=('Rockwell', 20))
-            self.login_password = ctk.CTkEntry(self, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
+
+            # Create a frame for password entry and eye button
+            self.password_frame = ctk.CTkFrame(self, fg_color="transparent")
+            self.login_password = ctk.CTkEntry(self.password_frame, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
+            self.show = ctk.CTkButton(self.password_frame, image=self.app.show, fg_color='transparent', hover=False, width=28, text='', command=lambda:self.app.toggle_password())
+
             self.login_button = ctk.CTkButton(
                 self, text='Login', font=('Rockwell', 20, 'bold'),
                 command=lambda: self.login()
@@ -125,21 +133,31 @@ class App(ctk.CTk):
                 command=lambda: self.app.screen_change(self.app.SignUp)
             )
 
-            # --- keep original layout with grid ---
+            # --- layout with grid ---
             self.login_label.grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
-            self.login_email.grid(row=1, column=0, pady=(10, 10), padx=20)
-            self.login_password.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20)
-            self.login_button.grid(row=3, column=0, pady=(10, 10), padx=20)
+            self.login_email.grid(row=1, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
+            self.password_frame.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
+            self.login_button.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20)
+
+            # Place password entry and eye button inside password_frame
+            self.login_password.grid(row=0, column=0, sticky='ew')
+            self.show.grid(row=0, column=1, padx=(5,0), sticky='w')
+            self.password_frame.grid_columnconfigure(0, weight=1)
+
+            # Bind Enter key to login
+            self.login_email.bind('<Return>', lambda event: self.login())
+            self.login_password.bind('<Return>', lambda event: self.login())
 
             self.pack()  # don’t change pack manager
 
         def login(self):
             username = self.login_email.get()
             password = self.login_password.get().encode('utf-8')
+
             if username and password:
                 self.app.cursor.execute(
                     "SELECT password FROM users WHERE username=%s",
-                    (username)
+                    (username,)
                 )
                 user = self.app.cursor.fetchone()
                 if user:
@@ -148,11 +166,11 @@ class App(ctk.CTk):
                         self.app.screen_change(self.app.Menue)
                     else:
                         CTkMessagebox(title="Error", message="Invalid username or password", icon='cancel').get()
-                        self.sign_up.grid(row=4, column=0, pady=20, sticky='e',padx=(500, 0))
+                        self.sign_up.grid(row=4, column=1, pady=20, sticky='e', padx=(0, 20))
                         
                 else:
                     CTkMessagebox(title="Error", message="Username not Found", icon='cancel').get()
-                    self.sign_up.grid(row=4, column=0, pady=20, sticky='e',padx=(500, 0))
+                    self.sign_up.grid(row=4, column=1, pady=20, sticky='e', padx=(0, 20))
 
             else:
                 CTkMessagebox(title="Error", message="Please fill in all fields", icon='retry')
@@ -164,23 +182,40 @@ class App(ctk.CTk):
 
             self.signup_label = ctk.CTkLabel(self, text='Sign Up', font=('Rockwell', 50, 'bold'))
             self.signup_email = ctk.CTkEntry(self, placeholder_text='Email', width=300, font=('Rockwell', 20))
-            self.signup_password = ctk.CTkEntry(self, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
+
+            # Password frame for entry and eye button
+            self.password_frame = ctk.CTkFrame(self, fg_color="transparent")
+            self.signup_password = ctk.CTkEntry(self.password_frame, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
+            self.show = ctk.CTkButton(
+                self.password_frame, image=self.app.show, fg_color='transparent', hover=False, width=28, text='',
+                command=lambda: self.app.toggle_password()
+            )
+
             self.signup_button = ctk.CTkButton(
                 self, text='Sign Up', font=('Rockwell', 20, 'bold'),
                 command=lambda: self.sign_up()
             )
 
-            # --- keep original layout with grid ---
+            # --- layout with grid ---
             self.signup_label.grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
-            self.signup_email.grid(row=1, column=0, pady=(10, 10), padx=20)
-            self.signup_password.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20)
-            self.signup_button.grid(row=3, column=0, pady=(10, 10), padx=20)
+            self.signup_email.grid(row=1, column=0, columnspan=2, pady=(10, 10), padx=20, sticky ='ew')
+            self.password_frame.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
+            self.signup_button.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20)
+
+            # Place password entry and eye button inside password_frame
+            self.signup_password.grid(row=0, column=0, sticky='ew')
+            self.show.grid(row=0, column=1, padx=(5,0), sticky='w')
+            self.password_frame.grid_columnconfigure(0, weight=1)
+
+            # Bind Enter key to sign up
+            self.signup_email.bind('<Return>', lambda event: self.sign_up())
+            self.signup_password.bind('<Return>', lambda event: self.sign_up())
 
             self.pack()  # don’t change pack manager
 
         def sign_up(self):
             username = self.signup_email.get()
-            password = self.sign_up_password.get().encode('utf-8')
+            password = self.signup_password.get().encode('utf-8')
             if username and password:
                 try:
                     hashed = bcrypt.hashpw(password, bcrypt.gensalt())
@@ -252,7 +287,20 @@ class App(ctk.CTk):
             self.indicator.place(x=self.x, y=self.y)
 
             if self.app.extend:
-                self.app.extend_menue()
+                self.app.extend_menie()
+
+    def toggle_password(self):
+        frame = self.current_screen
+        # Use login_password if it exists, else use signup_password
+        entry = getattr(frame, "login_password", None) or getattr(frame, "signup_password", None)
+        btn = getattr(frame, "show", None)
+        if entry and btn:
+            if entry.cget('show') == '*':
+                entry.configure(show='')
+                btn.configure(image=self.hide)
+            else:
+                entry.configure(show='*')
+                btn.configure(image=self.show)
 
 
 if __name__ == "__main__":
