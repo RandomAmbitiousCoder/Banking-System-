@@ -5,304 +5,378 @@ from CTkMessagebox import CTkMessagebox
 import bcrypt
 
 
+# =======================
+# APP (ROOT CONTROLLER)
+# =======================
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
+
         self.geometry("600x500")
         self.title("CTk Banking System")
 
-        # --- DB setup ---
+        # ---- Database ----
         self.mydb = ms.connect(
-            host='localhost',
-            user='root',
-            password='Innocent@2008'
+            host="localhost",
+            user="root",
+            password="Innocent@2008"
         )
         self.cursor = self.mydb.cursor()
         self.cursor.execute("CREATE DATABASE IF NOT EXISTS BankingSystem")
         self.cursor.execute("USE BankingSystem")
         self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                username VARCHAR(255) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL
-            )
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) UNIQUE,
+            password VARCHAR(255),
+            balance DECIMAL(10,2) DEFAULT 0.00
+        )
         """)
 
-        self.button_positions = {
-            'home': 130,
-            'service': 200,
-            'update': 270,
-            'contact': 340,
-            'about': 410
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT,
+            type VARCHAR(50),
+            amount DECIMAL(10,2),
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+
+        # ---- Root screens ----
+        self.screens = {
+            "Login": Login,
+            "SignUp": SignUp,
+            "Menue": Menue
         }
 
-        self.extend = False
+        self.change_root("Login")
 
-        # --- Images ---
-        self.show = ctk.CTkImage(Image.open("show.png"), size=(28, 28))
-        self.hide = ctk.CTkImage(Image.open("hide.png"), size=(28, 28))
-        self.toggle = ctk.CTkImage(Image.open("toggle_btn_icon.png"), size=(28, 28))
-        self.home = ctk.CTkImage(Image.open("home.png"), size=(28, 28))
-        self.service = ctk.CTkImage(Image.open("services_icon.png"), size=(28, 28))
-        self.updated = ctk.CTkImage(Image.open("updates_icon.png"), size=(28, 28))
-        self.contact = ctk.CTkImage(Image.open("contact_icon.png"), size=(28, 28))
-        self.about_icon = ctk.CTkImage(Image.open("about_icon.png"), size=(28, 28))
-        self.close = ctk.CTkImage(Image.open("close_btn_icon.png"), size=(28, 28))
+    def change_root(self, name):
+        for widget in self.winfo_children():
+            widget.destroy()
 
-        # --- Shared Frames ---
-        self.pageframe = ctk.CTkFrame(self)
-        self.menuebar = ctk.CTkFrame(self, fg_color='#383838', corner_radius=0)
+        self.screens[name](self)
 
-        # --- Menu Bar Buttons ---
-        self.indicator = self.Indicator(self)
-        self.toggle_menue_button = ctk.CTkButton(
-            self.menuebar, image=self.toggle, fg_color='#383838',
-            hover_color='#303030', width=0, text='',
-            command=lambda: self.extend_menue()
+
+# =======================
+# LOGIN
+# =======================
+
+class Login(ctk.CTkFrame):
+    def __init__(self, app):
+        super().__init__(app, fg_color="transparent")
+        self.app = app
+
+        self.show_img = ctk.CTkImage(Image.open("show.png"), size=(26, 26))
+        self.hide_img = ctk.CTkImage(Image.open("hide.png"), size=(26, 26))
+
+        ctk.CTkLabel(self, text='Login', font=('Rockwell', 50, 'bold')).grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
+
+        self.login_email = ctk.CTkEntry(self, placeholder_text='Email', width=300, font=('Rockwell', 20))
+
+        self.password_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.login_password = ctk.CTkEntry(self.password_frame, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
+        self.show = ctk.CTkButton(self.password_frame, image=self.show_img, fg_color='transparent', hover=False, width=28, text='', command=lambda:self.toggle_password())
+
+        self.login_button = ctk.CTkButton(
+            self, text='Login', font=('Rockwell', 20, 'bold'),
+            command=lambda: self.login()
         )
-        self.toggle_menue_button.place(x=4.5, y=10)
-
-        self.homebtn = ctk.CTkButton(
-            self.menuebar, image=self.home, fg_color='#383838',
-            hover_color='#303030', width=0, text='', height=40,
-            command=lambda: self.indicator.switch_position('home')
+        self.sign_up = ctk.CTkButton(
+            self, text='Sign Up?', font=('Rockwell', 20, 'bold'),
+            cursor='hand2', hover_color='#242424', fg_color='transparent',
+            command=lambda: self.app.change_root("SignUp")
         )
-        self.homelabel = ctk.CTkLabel(self.menuebar, text='Home', font=('Rockwell', 20, 'bold'))
+        self.sign_up.grid(row=4, column=1, columnspan=2, pady=(30, 10),  sticky='e')
 
-        self.servicebtn = ctk.CTkButton(
-            self.menuebar, image=self.service, fg_color='#383838',
-            hover_color='#303030', width=0, text='', height=40,
-            command=lambda: self.indicator.switch_position('service')
+        # --- layout with grid ---
+        
+        self.login_email.grid(row=1, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
+        self.password_frame.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
+        self.login_button.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20)
+
+        # Place password entry and eye button inside password_frame
+        self.login_password.grid(row=0, column=0, sticky='ew')
+        self.show.grid(row=0, column=1, padx=(5,0), sticky='w')
+        self.password_frame.grid_columnconfigure(0, weight=1)
+
+        # Bind Enter key to login
+        self.login_email.bind('<Return>', lambda event: self.login())
+        self.login_password.bind('<Return>', lambda event: self.login())
+
+        self.pack()
+
+    def toggle_password(self):
+        if self.login_password.cget("show") == "*":
+            self.login_password.configure(show="")
+            self.show.configure(image=self.hide_img)
+        else:
+            self.login_password.configure(show="*")
+            self.show.configure(image=self.show_img)
+
+    def login(self):
+        username = self.login_email.get()
+        password = self.login_password.get().encode()
+
+        self.app.cursor.execute(
+            "SELECT password FROM users WHERE username=%s",
+            (username,)
         )
-        self.servicelabel = ctk.CTkLabel(self.menuebar, text='Service', font=('Rockwell', 20, 'bold'))
+        user = self.app.cursor.fetchone()
 
-        self.contactbtn = ctk.CTkButton(
-            self.menuebar, image=self.contact, fg_color='#383838',
-            hover_color='#303030', width=0, text='', height=40,
-            command=lambda: self.indicator.switch_position('contact')
+        if user and bcrypt.checkpw(password, user[1].encode()):
+            self.app.current_user = user[0]
+
+            self.app.change_root("Menue")
+        else:
+            CTkMessagebox(
+                title="Error",
+                message="Invalid credentials",
+                icon="cancel"
+            )
+
+
+# =======================
+# SIGN UP
+# =======================
+
+class SignUp(ctk.CTkFrame):
+    def __init__(self, app):
+        super().__init__(app, fg_color="transparent")
+        self.app = app
+
+        self.show_img = ctk.CTkImage(Image.open("show.png"), size=(26, 26))
+        self.hide_img = ctk.CTkImage(Image.open("hide.png"), size=(26, 26))
+
+        self.signup_label = ctk.CTkLabel(self, text='Sign Up', font=('Rockwell', 50, 'bold'))
+        self.signup_email = ctk.CTkEntry(self, placeholder_text='Email', width=300, font=('Rockwell', 20))
+
+        # Password frame for entry and eye button
+        self.password_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.signup_password = ctk.CTkEntry(self.password_frame, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
+        self.show = ctk.CTkButton(
+            self.password_frame, image=self.show_img, fg_color='transparent', hover=False, width=28, text='',
+            command=lambda: self.toggle_password()
         )
-        self.contactlabel = ctk.CTkLabel(self.menuebar, text='Contact', font=('Rockwell', 20, 'bold'))
 
-        self.updatebtn = ctk.CTkButton(
-            self.menuebar, image=self.updated, fg_color='#383838',
-            hover_color='#303030', width=0, text='', height=40,
-            command=lambda: self.indicator.switch_position('update')
+        self.signup_button = ctk.CTkButton(
+            self, text='Sign Up', font=('Rockwell', 20, 'bold'),
+            command=lambda: self.signup()
         )
-        self.updatelabel = ctk.CTkLabel(self.menuebar, text='Update', font=('Rockwell', 20, 'bold'))
 
-        self.aboutbtn = ctk.CTkButton(
-            self.menuebar, image=self.about_icon, fg_color='#383838',
-            hover_color='#303030', width=0, text='', height=40,
-            command=lambda: self.indicator.switch_position('about')
+        self.back = ctk.CTkButton(
+            self, text='Back to Login', font=('Rockwell', 20, 'bold'),
+            cursor='hand2', hover_color='#242424', fg_color='transparent',
+            command=lambda: self.app.change_root("Login")
         )
-        self.aboutlabel = ctk.CTkLabel(self.menuebar, text='About', font=('Rockwell', 20, 'bold'))
+        # --- layout with grid ---
+        self.signup_label.grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
+        self.signup_email.grid(row=1, column=0, columnspan=2, pady=(10, 10), padx=20, sticky ='ew')
+        self.password_frame.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
+        self.signup_button.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20)
+        self.back.grid(row=4, column=1, columnspan=2, pady=(30, 10), sticky='e')
 
-        # --- First screen = Login ---
-        self.current_screen = None
-        self.screen_change(self.Login)
+        # Place password entry and eye button inside password_frame
+        self.signup_password.grid(row=0, column=0, sticky='ew')
+        self.show.grid(row=0, column=1, padx=(5,0), sticky='w')
+        self.password_frame.grid_columnconfigure(0, weight=1)
 
-    # --- Screen Manager ---
-    def screen_change(self, screen):
-        if self.current_screen:
-            self.current_screen.pack_forget()
-            self.current_screen.destroy()
-        self.current_screen = screen(self)
-        return self.current_screen
+        # Bind Enter key to sign up
+        self.signup_email.bind('<Return>', lambda event: self.signup())
+        self.signup_password.bind('<Return>', lambda event: self.signup())
+
+        self.pack()  # don’t change pack manager
+
     
 
-    # --- Pages ---
-    class Login(ctk.CTkFrame):
-        def __init__(self, app):
-            super().__init__(app, fg_color="transparent")
-            self.app = app
+    def toggle_password(self):
+        if self.signup_password.cget("show") == "*":
+            self.signup_password.configure(show="")
+            self.show.configure(image=self.hide_img)
+        else:
+            self.signup_password.configure(show="*")
+            self.show.configure(image=self.show_img)
+    def signup(self):
+        username = self.signup_email.get()
+        password = self.signup_password.get().encode()
 
-            self.login_label = ctk.CTkLabel(self, text='Login', font=('Rockwell', 50, 'bold'))
-            self.login_email = ctk.CTkEntry(self, placeholder_text='Email', width=300, font=('Rockwell', 20))
+        hashed = bcrypt.hashpw(password, bcrypt.gensalt())
 
-            # Create a frame for password entry and eye button
-            self.password_frame = ctk.CTkFrame(self, fg_color="transparent")
-            self.login_password = ctk.CTkEntry(self.password_frame, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
-            self.show = ctk.CTkButton(self.password_frame, image=self.app.show, fg_color='transparent', hover=False, width=28, text='', command=lambda:self.app.toggle_password())
-
-            self.login_button = ctk.CTkButton(
-                self, text='Login', font=('Rockwell', 20, 'bold'),
-                command=lambda: self.login()
+        try:
+            self.app.cursor.execute(
+                "INSERT INTO users VALUES (%s, %s)",
+                (username, hashed.decode())
             )
-            self.sign_up = ctk.CTkButton(
-                self, text='Sign Up?', font=('Rockwell', 20, 'bold'),
-                cursor='hand2', hover_color='#242424', fg_color='transparent',
-                command=lambda: self.app.screen_change(self.app.SignUp)
+            self.app.mydb.commit()
+
+            CTkMessagebox(
+                title="Success",
+                message="Account created",
+                icon="check"
             )
+            self.app.change_root("Login")
 
-            # --- layout with grid ---
-            self.login_label.grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
-            self.login_email.grid(row=1, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
-            self.password_frame.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
-            self.login_button.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20)
-
-            # Place password entry and eye button inside password_frame
-            self.login_password.grid(row=0, column=0, sticky='ew')
-            self.show.grid(row=0, column=1, padx=(5,0), sticky='w')
-            self.password_frame.grid_columnconfigure(0, weight=1)
-
-            # Bind Enter key to login
-            self.login_email.bind('<Return>', lambda event: self.login())
-            self.login_password.bind('<Return>', lambda event: self.login())
-
-            self.pack()  # don’t change pack manager
-
-        def login(self):
-            username = self.login_email.get()
-            password = self.login_password.get().encode('utf-8')
-
-            if username and password:
-                self.app.cursor.execute(
-                    "SELECT password FROM users WHERE username=%s",
-                    (username,)
-                )
-                user = self.app.cursor.fetchone()
-                if user:
-                    stored_hash = user[0].encode('utf-8')
-                    if bcrypt.checkpw(password, stored_hash):
-                        self.app.screen_change(self.app.Menue)
-                    else:
-                        CTkMessagebox(title="Error", message="Invalid username or password", icon='cancel').get()
-                        self.sign_up.grid(row=4, column=1, pady=20, sticky='e', padx=(0, 20))
-                        
-                else:
-                    CTkMessagebox(title="Error", message="Username not Found", icon='cancel').get()
-                    self.sign_up.grid(row=4, column=1, pady=20, sticky='e', padx=(0, 20))
-
-            else:
-                CTkMessagebox(title="Error", message="Please fill in all fields", icon='retry')
-
-    class SignUp(ctk.CTkFrame):
-        def __init__(self, app):
-            super().__init__(app, fg_color="transparent")
-            self.app = app
-
-            self.signup_label = ctk.CTkLabel(self, text='Sign Up', font=('Rockwell', 50, 'bold'))
-            self.signup_email = ctk.CTkEntry(self, placeholder_text='Email', width=300, font=('Rockwell', 20))
-
-            # Password frame for entry and eye button
-            self.password_frame = ctk.CTkFrame(self, fg_color="transparent")
-            self.signup_password = ctk.CTkEntry(self.password_frame, placeholder_text='Password', show='*', width=300, font=('Rockwell', 20))
-            self.show = ctk.CTkButton(
-                self.password_frame, image=self.app.show, fg_color='transparent', hover=False, width=28, text='',
-                command=lambda: self.app.toggle_password()
+        except ms.Error:
+            CTkMessagebox(
+                title="Error",
+                message="User already exists",
+                icon="cancel"
             )
 
-            self.signup_button = ctk.CTkButton(
-                self, text='Sign Up', font=('Rockwell', 20, 'bold'),
-                command=lambda: self.sign_up()
-            )
 
-            # --- layout with grid ---
-            self.signup_label.grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
-            self.signup_email.grid(row=1, column=0, columnspan=2, pady=(10, 10), padx=20, sticky ='ew')
-            self.password_frame.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
-            self.signup_button.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20)
+# =======================
+# MENUE
+# =======================
+class Menue(ctk.CTkFrame):
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
 
-            # Place password entry and eye button inside password_frame
-            self.signup_password.grid(row=0, column=0, sticky='ew')
-            self.show.grid(row=0, column=1, padx=(5,0), sticky='w')
-            self.password_frame.grid_columnconfigure(0, weight=1)
+        # --- state ---
+        self.extend = False
+        self.button_positions = {
+            "home": 130,
+            "service": 200,
+            "update": 270,
+            "contact": 340,
+            "about": 410
+        }
 
-            # Bind Enter key to sign up
-            self.signup_email.bind('<Return>', lambda event: self.sign_up())
-            self.signup_password.bind('<Return>', lambda event: self.sign_up())
+        # --- images ---
+        self.toggle_img = ctk.CTkImage(Image.open("toggle_btn_icon.png"), size=(28, 28))
+        self.close_img = ctk.CTkImage(Image.open("close_btn_icon.png"), size=(28, 28))
+        self.home_img = ctk.CTkImage(Image.open("home.png"), size=(28, 28))
+        self.service_img = ctk.CTkImage(Image.open("services_icon.png"), size=(28, 28))
+        self.update_img = ctk.CTkImage(Image.open("updates_icon.png"), size=(28, 28))
+        self.contact_img = ctk.CTkImage(Image.open("contact_icon.png"), size=(28, 28))
+        self.about_img = ctk.CTkImage(Image.open("about_icon.png"), size=(28, 28))
 
-            self.pack()  # don’t change pack manager
+        # --- frames ---
+        self.menuebar = ctk.CTkFrame(self, fg_color="#383838", width=51, corner_radius=0)
+        self.menuebar.pack(side="left", fill="y")
 
-        def sign_up(self):
-            username = self.signup_email.get()
-            password = self.signup_password.get().encode('utf-8')
-            if username and password:
-                try:
-                    hashed = bcrypt.hashpw(password, bcrypt.gensalt())
-                    self.app.cursor.execute(
-                        "INSERT INTO users (username, password) VALUES (%s, %s)",
-                        (username, hashed.decode('utf-8'))
-                    )
-                    self.app.mydb.commit()
-                    CTkMessagebox(title="Success", message="User created successfully", icon='check')
-                    self.app.screen_change(self.app.Login)
-                except ms.Error as e:
-                    CTkMessagebox(title="Error", message=f"Error creating user: {e}", icon='cancel')
-            else:
-                CTkMessagebox(title="Error", message="Please fill in all fields", icon='retry')
+        self.pageframe = ctk.CTkFrame(self)
+        self.pageframe.pack(side="left", fill="both", expand=True)
 
-    class Menue(ctk.CTkFrame):
-        def __init__(self, app):
-            super().__init__(app, fg_color="transparent")
-            self.app = app
+        # --- indicator ---
+        self.indicator = ctk.CTkLabel(
+            self.menuebar,
+            fg_color="white",
+            text="",
+            width=4,
+            height=40
+        )
+        self.indicator.place(x=0, y=130)
 
-            
-            self.app.menuebar.pack(side='left', fill='both')
-            self.app.menuebar.propagate(False)
-            self.app.menuebar.configure(width=51)
+        # --- toggle button ---
+        self.toggle_btn = ctk.CTkButton(
+            self.menuebar,
+            image=self.toggle_img,
+            text="",
+            width=0,
+            fg_color="#383838",
+            hover_color="#303030",
+            command=self.toggle_menu
+        )
+        self.toggle_btn.place(x=5, y=10)
 
-            self.app.homebtn.place(x=4.5, y=130)
-            self.app.homelabel.place(x=60, y=137)
+        # --- menu buttons ---
+        self.create_button("home", self.home_img, 130, Home)
+        self.create_button("service", self.service_img, 200, Service)
+        self.create_button("update", self.update_img, 270, Update)
+        self.create_button("contact", self.contact_img, 340, Contact)
+        self.create_button("about", self.about_img, 410, About)
 
-            self.app.servicebtn.place(x=4.5, y=200)
-            self.app.servicelabel.place(x=60, y=207)
+        self.pack(fill="both", expand=True)
+        self.load_page("home", Home)
 
-            self.app.updatebtn.place(x=4.5, y=270)
-            self.app.updatelabel.place(x=60, y=277)
+    # ------------------
+    # helpers
+    # ------------------
 
-            self.app.contactbtn.place(x=4.5, y=340)
-            self.app.contactlabel.place(x=60, y=347)
+    def create_button(self, name, image, y, page_class):
+        btn = ctk.CTkButton(
+            self.menuebar,
+            image=image,
+            text="",
+            width=0,
+            height=40,
+            fg_color="#383838",
+            hover_color="#303030",
+            command=lambda: self.load_page(name, page_class)
+        )
+        btn.place(x=5, y=y)
 
-            self.app.aboutbtn.place(x=4.5, y=410)
-            self.app.aboutlabel.place(x=60, y=417)
+    def load_page(self, name, page_class):
+        self.indicator.place(y=self.button_positions[name])
 
-            self.pack()  # keep pack manager
+        for w in self.pageframe.winfo_children():
+            w.destroy()
 
-    # --- Menu Extender ---
-    def extend_menue(self):
+        page_class(self.pageframe).pack(fill="both", expand=True)
+
+        if self.extend:
+            self.toggle_menu()
+
+    def toggle_menu(self):
         if not self.extend:
             self.menuebar.configure(width=200)
-            self.toggle_menue_button.configure(image=self.close)
+            self.toggle_btn.configure(image=self.close_img)
             self.extend = True
         else:
             self.menuebar.configure(width=51)
-            self.toggle_menue_button.configure(image=self.toggle)
+            self.toggle_btn.configure(image=self.toggle_img)
             self.extend = False
 
-    # --- Indicator ---
-    class Indicator:
-        def __init__(self, app, x=0, y=130):
-            self.app = app
-            self.x = x
-            self.y = y
-            self.indicator = ctk.CTkLabel(
-                self.app.menuebar, fg_color='white', text='',
-                height=40, width=3.5
-            )
-            self.indicator.place(x=self.x, y=self.y)
 
-        def switch_position(self, button_name, x=0):
-            self.x = x
-            self.y = self.app.button_positions[button_name]
-            self.indicator.place(x=self.x, y=self.y)
+# =======================
+# VISUAL PAGES
+# =======================
 
-            if self.app.extend:
-                self.app.extend_menie()
-
-    def toggle_password(self):
-        frame = self.current_screen
-        # Use login_password if it exists, else use signup_password
-        entry = getattr(frame, "login_password", None) or getattr(frame, "signup_password", None)
-        btn = getattr(frame, "show", None)
-        if entry and btn:
-            if entry.cget('show') == '*':
-                entry.configure(show='')
-                btn.configure(image=self.hide)
-            else:
-                entry.configure(show='*')
-                btn.configure(image=self.show)
+class Home(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        app = parent.master
+        app.cursor.execute(
+            "SELECT balance FROM users WHERE id=%s",
+            (app.current_user,)
+        )
+        balance = app.cursor.fetchone()[0]
 
 
-if __name__ == "__main__":
-    app = App()
-    app.mainloop()
+        ctk.CTkLabel(self, text="🏠 Home", font=("Rockwell", 40)).pack(pady=40)
+
+
+class Service(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        ctk.CTkLabel(self, text="⚙️ Services", font=("Rockwell", 40)).pack(pady=40)
+
+
+class Update(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        ctk.CTkLabel(self, text="🔔 Updates", font=("Rockwell", 40)).pack(pady=40)
+
+
+class Contact(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        ctk.CTkLabel(self, text="📞 Contact", font=("Rockwell", 40)).pack(pady=40)
+
+
+class About(ctk.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        ctk.CTkLabel(self, text="ℹ️ About", font=("Rockwell", 40)).pack(pady=40)
+
+
+# =======================
+# RUN APP
+# =======================
+
+app = App()
+app.mainloop()
