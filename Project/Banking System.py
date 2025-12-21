@@ -3,6 +3,7 @@ from PIL import Image
 import mysql.connector as ms
 from CTkMessagebox import CTkMessagebox
 import bcrypt
+from decimal import Decimal
 
 
 # =======================
@@ -15,6 +16,8 @@ class App(ctk.CTk):
 
         self.geometry("600x500")
         self.title("CTk Banking System")
+
+
 
         # ---- Database ----
         self.mydb = ms.connect(
@@ -43,6 +46,8 @@ class App(ctk.CTk):
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         """)
+
+        self.current_user = None
 
 
         # ---- Root screens ----
@@ -122,7 +127,7 @@ class Login(ctk.CTkFrame):
         password = self.login_password.get().encode()
 
         self.app.cursor.execute(
-            "SELECT password FROM users WHERE username=%s",
+            "SELECT id, password FROM users WHERE username=%s",
             (username,)
         )
         user = self.app.cursor.fetchone()
@@ -200,31 +205,27 @@ class SignUp(ctk.CTkFrame):
             self.signup_password.configure(show="*")
             self.show.configure(image=self.show_img)
     def signup(self):
-        username = self.signup_email.get()
-        password = self.signup_password.get().encode()
-
-        hashed = bcrypt.hashpw(password, bcrypt.gensalt())
-
         try:
-            self.app.cursor.execute(
-                "INSERT INTO users VALUES (%s, %s)",
+            username = self.signup_email.get()
+            password = self.signup_password.get()
+
+            hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+
+            self.master.cursor.execute(
+                "INSERT INTO users(username, password) VALUES (%s, %s)",
                 (username, hashed.decode())
             )
-            self.app.mydb.commit()
+            self.master.mydb.commit()
 
-            CTkMessagebox(
-                title="Success",
-                message="Account created",
-                icon="check"
-            )
+            CTkMessagebox(title="Success", message="Account Created", icon="check").get()
             self.app.change_root("Login")
+            
 
-        except ms.Error:
-            CTkMessagebox(
-                title="Error",
-                message="User already exists",
-                icon="cancel"
-            )
+        except Exception as e:
+            print("SIGNUP ERROR:", e)
+            CTkMessagebox(title="Error", message=str(e), icon="cancel")
+
+
 
 
 # =======================
@@ -290,6 +291,13 @@ class Menue(ctk.CTkFrame):
         self.create_button("contact", self.contact_img, 340, Contact)
         self.create_button("about", self.about_img, 410, About)
 
+        # --- menu labels ---
+        self.create_label("Home", 137)
+        self.create_label("Service", 207)
+        self.create_label("Update", 277)
+        self.create_label("Contact", 347)
+        self.create_label("About", 417)
+
         self.pack(fill="both", expand=True)
         self.load_page("home", Home)
 
@@ -309,6 +317,15 @@ class Menue(ctk.CTkFrame):
             command=lambda: self.load_page(name, page_class)
         )
         btn.place(x=5, y=y)
+
+    def create_label(self, text, y):
+        label = ctk.CTkLabel(
+            self.menuebar,
+            text=text,
+            font=("Rockwell", 20),
+            
+        )
+        label.place(x=60, y=y)
 
     def load_page(self, name, page_class):
         self.indicator.place(y=self.button_positions[name])
@@ -339,21 +356,141 @@ class Menue(ctk.CTkFrame):
 class Home(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent)
-        app = parent.master
+
+        app = parent.master.app  # <-- ADDED
         app.cursor.execute(
-            "SELECT balance FROM users WHERE id=%s",
+            "SELECT balance, username FROM users WHERE id=%s",
             (app.current_user,)
-        )
-        balance = app.cursor.fetchone()[0]
+        )  # <-- ADDED
+        balance, username = app.cursor.fetchone()  # <-- ADDED
+
+        ctk.CTkLabel(self, text=f"🏠 Welcome, {username}", font=("Rockwell", 40)).pack(pady=20)
+
+        ctk.CTkLabel(
+            self,
+            text=f"Balance: ₹{balance}",
+            font=("Rockwell", 30)
+        ).pack(pady=30)
 
 
-        ctk.CTkLabel(self, text="🏠 Home", font=("Rockwell", 40)).pack(pady=40)
-
+        
+       
 
 class Service(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent)
-        ctk.CTkLabel(self, text="⚙️ Services", font=("Rockwell", 40)).pack(pady=40)
+        self.pack(fill="both", expand=True)
+
+        app = parent.master.app
+        self.app = app
+
+        # Title
+        ctk.CTkLabel(
+            self,
+            text="🏦 Banking Services",
+            font=("Rockwell", 40)
+        ).pack(pady=20)
+
+        # Fetch balance
+        app.cursor.execute(
+            "SELECT balance FROM users WHERE id=%s",
+            (app.current_user,)
+        )
+        row = app.cursor.fetchone()
+        self.balance = row[0] if row else Decimal("0.0")
+
+        # Balance label
+        self.balance_label = ctk.CTkLabel(
+            self,
+            text=f"Current Balance: ₹{self.balance}",
+            font=("Rockwell", 28)
+        )
+        self.balance_label.pack(pady=20)
+
+        # Amount entry
+        self.amount_entry = ctk.CTkEntry(
+            self,
+            placeholder_text="Enter amount",
+            width=250, font=("Rockwell", 20)
+        )
+        self.amount_entry.pack(pady=10)
+
+        # Buttons frame
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(pady=20)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Deposit",
+            width=120, font=("Rockwell", 20),
+            command=lambda: self.deposit()
+        ).pack(side="left", padx=10)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Withdraw",
+            width=120, font=("Rockwell", 20),
+            command=lambda:self.withdraw()
+        ).pack(side="left", padx=10)
+
+    def deposit(self):
+        try:
+            amount = Decimal(self.amount_entry.get())
+            if amount <= 0:
+                raise ValueError
+
+            self.balance += amount
+
+            self.app.cursor.execute(
+                "UPDATE users SET balance=%s WHERE id=%s",
+                (self.balance, self.app.current_user)
+            )
+            self.app.cursor.execute(
+                "INSERT INTO transactions(user_id, type, amount) VALUES (%s, %s,%s)",
+                (self.app.current_user, "Deposit", amount)
+            )
+
+            self.app.mydb.commit()
+
+            self.balance_label.configure(
+                text=f"Current Balance: ₹{self.balance}"
+            )
+            self.amount_entry.delete(0, "end")
+
+        except Exception as e:
+            print("SIGNUP ERROR:", e)
+            CTkMessagebox(title="Error", message=str(e), icon="cancel")
+
+    def withdraw(self):
+        try:
+            amount = Decimal(self.amount_entry.get())
+            if amount <= 0 or amount > self.balance:
+                raise ValueError
+
+            self.balance -= amount
+
+            self.app.cursor.execute(
+                "UPDATE users SET balance=%s WHERE id=%s",
+                (self.balance, self.app.current_user)
+            )
+            self.app.cursor.execute(
+                "INSERT INTO transactions(user_id, type, amount) VALUES (%s, %s,%s)",
+                (self.app.current_user, "Withdraw", amount)
+            )
+            self.app.mydb.commit()
+
+            self.balance_label.configure(
+                text=f"Current Balance: ₹{self.balance}"
+            )
+            self.amount_entry.delete(0, "end")
+
+        except :
+            CTkMessagebox(title="Error", message="Invalid amount", icon="cancel")  
+            
+            
+            
+
+
 
 
 class Update(ctk.CTkFrame):
@@ -366,12 +503,22 @@ class Contact(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent)
         ctk.CTkLabel(self, text="📞 Contact", font=("Rockwell", 40)).pack(pady=40)
-
+        ctk.CTkLabel(
+            self,
+            text="Mobile: +91 8076032663\nEmail:technoisdead@gmail.com"
+        ).pack(pady=10)
 
 class About(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent)
-        ctk.CTkLabel(self, text="ℹ️ About", font=("Rockwell", 40)).pack(pady=40)
+
+        ctk.CTkLabel(self, text="About Bank", font=("Rockwell", 30)).pack(pady=30)
+        ctk.CTkLabel(
+            self,
+            text="Motto: Banking Made Simple, Secure and Smart",
+            wraplength=500
+        ).pack(pady=10)
+    
 
 
 # =======================
