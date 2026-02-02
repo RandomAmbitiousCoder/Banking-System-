@@ -75,8 +75,8 @@ class Login(ctk.CTkFrame):
         super().__init__(app, fg_color="transparent")
         self.app = app
 
-        self.show_img = ctk.CTkImage(Image.open("show.png"), size=(26, 26))
-        self.hide_img = ctk.CTkImage(Image.open("hide.png"), size=(26, 26))
+        self.show_img = ctk.CTkImage(Image.open("assets/show.png"), size=(26, 26))
+        self.hide_img = ctk.CTkImage(Image.open("assets/hide.png"), size=(26, 26))
 
         ctk.CTkLabel(self, text='Login', font=('Rockwell', 50, 'bold')).grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
 
@@ -167,6 +167,8 @@ class SignUp(ctk.CTkFrame):
             command=lambda: self.toggle_password()
         )
 
+        self.minimum_balance = ctk.CTkEntry(self, placeholder_text='Minimum Initial Deposit (₹)', width=300, font=('Rockwell', 20))
+
         self.signup_button = ctk.CTkButton(
             self, text='Sign Up', font=('Rockwell', 20, 'bold'),
             command=lambda: self.signup()
@@ -181,8 +183,9 @@ class SignUp(ctk.CTkFrame):
         self.signup_label.grid(row=0, column=0, columnspan=2, pady=(100, 10), padx=20)
         self.signup_email.grid(row=1, column=0, columnspan=2, pady=(10, 10), padx=20, sticky ='ew')
         self.password_frame.grid(row=2, column=0, columnspan=2, pady=(10, 10), padx=20, sticky='ew')
-        self.signup_button.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20)
-        self.back.grid(row=4, column=1, columnspan=2, pady=(30, 10), sticky='e')
+        self.minimum_balance.grid(row=3, column=0, columnspan=2, pady=(10, 10), padx=20, sticky ='ew')
+        self.signup_button.grid(row=4, column=0, columnspan=2, pady=(10, 10), padx=20)
+        self.back.grid(row=5, column=1, columnspan=2, pady=(30, 10), sticky='e')
 
         # Place password entry and eye button inside password_frame
         self.signup_password.grid(row=0, column=0, sticky='ew')
@@ -192,6 +195,7 @@ class SignUp(ctk.CTkFrame):
         # Bind Enter key to sign up
         self.signup_email.bind('<Return>', lambda event: self.signup())
         self.signup_password.bind('<Return>', lambda event: self.signup())
+        self.minimum_balance.bind('<Return>', lambda event: self.signup())
 
         self.pack()  # don’t change pack manager
 
@@ -208,12 +212,17 @@ class SignUp(ctk.CTkFrame):
         try:
             username = self.signup_email.get()
             password = self.signup_password.get()
+            minimum_balance = Decimal(self.minimum_balance.get())
+            if minimum_balance < 1000:
+                raise ValueError()
+            elif username == "" or password == "" or minimum_balance == "":
+                raise ValueError()
 
             hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
             self.master.cursor.execute(
-                "INSERT INTO users(username, password) VALUES (%s, %s)",
-                (username, hashed.decode())
+                "INSERT INTO users(username, password,balance) VALUES (%s, %s, %s)",
+                (username, hashed.decode(), minimum_balance)
             )
             self.master.mydb.commit()
 
@@ -222,8 +231,9 @@ class SignUp(ctk.CTkFrame):
             
 
         except Exception as e:
+            
             print("SIGNUP ERROR:", e)
-            CTkMessagebox(title="Error", message=str(e), icon="cancel")
+            CTkMessagebox(title="Error", message="Please enter valid details", icon="cancel")
 
 
 
@@ -247,13 +257,13 @@ class Menue(ctk.CTkFrame):
         }
 
         # --- images ---
-        self.toggle_img = ctk.CTkImage(Image.open("toggle_btn_icon.png"), size=(28, 28))
-        self.close_img = ctk.CTkImage(Image.open("close_btn_icon.png"), size=(28, 28))
-        self.home_img = ctk.CTkImage(Image.open("home.png"), size=(28, 28))
-        self.service_img = ctk.CTkImage(Image.open("services_icon.png"), size=(28, 28))
-        self.update_img = ctk.CTkImage(Image.open("updates_icon.png"), size=(28, 28))
-        self.contact_img = ctk.CTkImage(Image.open("contact_icon.png"), size=(28, 28))
-        self.about_img = ctk.CTkImage(Image.open("about_icon.png"), size=(28, 28))
+        self.toggle_img = ctk.CTkImage(Image.open("assets/toggle_btn_icon.png"), size=(28, 28))
+        self.close_img = ctk.CTkImage(Image.open("assets/close_btn_icon.png"), size=(28, 28))
+        self.home_img = ctk.CTkImage(Image.open("assets/home.png"), size=(28, 28))
+        self.service_img = ctk.CTkImage(Image.open("assets/services_icon.png"), size=(28, 28))
+        self.update_img = ctk.CTkImage(Image.open("assets/updates_icon.png"), size=(28, 28))
+        self.contact_img = ctk.CTkImage(Image.open("assets/contact_icon.png"), size=(28, 28))
+        self.about_img = ctk.CTkImage(Image.open("assets/about_icon.png"), size=(28, 28))
 
         # --- frames ---
         self.menuebar = ctk.CTkFrame(self, fg_color="#383838", width=51, corner_radius=0)
