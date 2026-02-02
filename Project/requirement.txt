@@ -1,0 +1,5 @@
+CustomTKinter
+Pillow
+mysql-connector-python
+CTkMessagebox
+bcrypt
