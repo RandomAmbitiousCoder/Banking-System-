@@ -469,7 +469,7 @@ class Service(ctk.CTkFrame):
 
         except Exception as e:
             print("SIGNUP ERROR:", e)
-            CTkMessagebox(title="Error", message=str(e), icon="cancel")
+            CTkMessagebox(title="Error", message="Invalid amount", icon="cancel")
 
     def withdraw(self):
         try:
